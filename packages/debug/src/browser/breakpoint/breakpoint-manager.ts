@@ -14,8 +14,8 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { DebugSession } from '../debug-model';
-import { DebugSessionManager } from '../debug-session';
+import { DebugSession } from '../debug-session';
+import { DebugSessionManager } from '../debug-session-manager';
 import { injectable, inject } from 'inversify';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import { SourceOpener, DebugUtils } from '../debug-utils';
@@ -72,9 +72,9 @@ export class BreakpointsManager implements FrontendApplicationContribution {
      * @param position the mouse position in the editor
      */
     async toggleBreakpoint(editor: TextEditor, position: Position): Promise<void> {
-        const debugSession = this.debugSessionManager.getActiveDebugSession();
+        const session = this.debugSessionManager.currentSession;
 
-        const srcBreakpoint = this.createSourceBreakpoint(debugSession, editor, position);
+        const srcBreakpoint = this.createSourceBreakpoint(session, editor, position);
         const id = DebugUtils.makeBreakpointId(srcBreakpoint);
 
         if (this.breakpointStorage.exists(id)) {
@@ -83,9 +83,9 @@ export class BreakpointsManager implements FrontendApplicationContribution {
             this.breakpointStorage.add(srcBreakpoint);
         }
 
-        if (debugSession) {
-            const source = DebugUtils.toSource(editor.uri, debugSession);
-            await this.breakpointApplier.applySessionBreakpoints(debugSession, source);
+        if (session) {
+            const source = DebugUtils.toSource(editor.uri, session);
+            await this.breakpointApplier.applySessionBreakpoints(session, source);
         }
 
         this.breakpointDecorator.applyDecorations(editor);
@@ -123,14 +123,14 @@ export class BreakpointsManager implements FrontendApplicationContribution {
         };
     }
 
-    private onDebugSessionCreated(debugSession: DebugSession) {
-        debugSession.on('stopped', event => this.onThreadStopped(debugSession, event));
-        debugSession.on('continued', event => this.onThreadContinued(debugSession, event));
-        debugSession.on('terminated', event => this.onTerminated(debugSession, event));
-        debugSession.on('configurationDone', event => this.onConfigurationDone(debugSession, event));
-        debugSession.on('breakpoint', event => this.onBreakpoint(debugSession, event));
+    private onDebugSessionCreated(session: DebugSession): void {
+        session.on('stopped', event => this.onThreadStopped(session, event));
+        session.on('continued', event => this.onThreadContinued(session, event));
+        session.on('terminated', event => this.onTerminated(session, event));
+        session.on('breakpoint', event => this.onBreakpoint(session, event));
+        session.onConfigurationDone(() => this.onConfigurationDone(session));
 
-        this.assignBreakpointsToSession(debugSession);
+        this.assignBreakpointsToSession(session);
     }
 
     private assignBreakpointsToSession(debugSession: DebugSession) {
@@ -145,7 +145,7 @@ export class BreakpointsManager implements FrontendApplicationContribution {
         this.onDidChangeBreakpointsEmitter.fire(undefined);
     }
 
-    private onConfigurationDone(debugSession: DebugSession, event: ExtDebugProtocol.ConfigurationDoneEvent): void {
+    private onConfigurationDone(debugSession: DebugSession): void {
         this.breakpointDecorator.applyDecorations();
         this.lineDecorator.applyDecorations();
     }
@@ -230,7 +230,7 @@ export class BreakpointsManager implements FrontendApplicationContribution {
         this.lineDecorator.applyDecorations();
     }
 
-    private onThreadStopped(debugSession: DebugSession, event: DebugProtocol.StoppedEvent): void {
+    private async onThreadStopped(session: DebugSession, event: DebugProtocol.StoppedEvent): Promise<void> {
         const body = event.body;
 
         if (body.threadId) {
@@ -240,20 +240,10 @@ export class BreakpointsManager implements FrontendApplicationContribution {
                 case 'entry':
                 case 'step':
                 case 'user request': {
-                    const activeDebugSession = this.debugSessionManager.getActiveDebugSession();
-                    if (activeDebugSession && activeDebugSession.sessionId === debugSession.sessionId) {
-                        const args: DebugProtocol.StackTraceArguments = {
-                            threadId: body.threadId,
-                            startFrame: 0,
-                            levels: 1
-                        };
-
-                        debugSession.stacks(args).then(response => {
-                            const frame = response.body.stackFrames[0];
-                            if (frame) {
-                                this.sourceOpener.open(frame).then(() => this.lineDecorator.applyDecorations());
-                            }
-                        });
+                    const frame = session.currentFrame;
+                    if (frame) {
+                        await frame.reveal();
+                        this.lineDecorator.applyDecorations();
                     }
                     break;
                 }

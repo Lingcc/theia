@@ -20,7 +20,7 @@ import { DebugProtocol } from 'vscode-debugprotocol';
 import { EditorWidget } from '@theia/editor/lib/browser/editor-widget';
 import URI from '@theia/core/lib/common/uri';
 import { ExtDebugProtocol } from '../common/debug-common';
-import { DebugSession } from './debug-model';
+import { DebugSession } from './debug-session';
 
 @injectable()
 export class SourceOpener {
@@ -143,8 +143,8 @@ export namespace DebugUtils {
 
         if (debugSession) {
             const source = sourceReference
-                ? debugSession.state.sources.get(sourceReference)
-                : debugSession.state.sources.get(uri.path.toString());
+                ? debugSession.sources.get(sourceReference)
+                : debugSession.sources.get(uri.path.toString());
             if (source) {
                 return source;
             }

@@ -123,42 +123,9 @@ export interface DebugConfiguration {
 export const DebugAdapterPath = '/services/debug-adapter';
 
 /**
- * The debug session state.
- */
-export interface DebugSessionState {
-    /**
-     * Indicates if debug session is connected to the debug adapter.
-     */
-    isConnected: boolean;
-
-    /**
-     * Indicates if all threads are continued.
-     */
-    allThreadsContinued: boolean | undefined;
-
-    /**
-     * Indicates if all threads are stopped.
-     */
-    allThreadsStopped: boolean | undefined;
-
-    /**
-     * Stopped threads Ids.
-     */
-    stoppedThreadIds: Set<number>;
-
-    /**
-     * Debug adapter protocol capabilities.
-     */
-    capabilities: DebugProtocol.Capabilities;
-
-    /**
-     * Loaded sources.
-     */
-    sources: Map<string, DebugProtocol.Source>;
-}
-
-/**
  * Extension to the vscode debug protocol.
+ *
+ * FIXME: get rid of it, replace with proper frontend emitters
  */
 export namespace ExtDebugProtocol {
 
@@ -171,11 +138,6 @@ export namespace ExtDebugProtocol {
      * Event message for 'connected' event type.
      */
     export interface ConnectedEvent extends DebugProtocol.Event { }
-
-    /**
-     * Event message for 'configurationDone' event type.
-     */
-    export interface ConfigurationDoneEvent extends DebugProtocol.Event { }
 
     /**
      * Event message for 'variableUpdated' event type.
@@ -230,93 +192,5 @@ export namespace ExtDebugProtocol {
          * One of possible breakpoints.
          */
         origin: DebugProtocol.SourceBreakpoint | DebugProtocol.FunctionBreakpoint | ExtDebugProtocol.ExceptionBreakpoint;
-    }
-}
-
-/**
- * Accumulates session states since some data are available only through events
- * and are needed in different components.
- */
-export class DebugSessionStateAccumulator implements DebugSessionState {
-    isConnected: boolean;
-    allThreadsContinued: boolean | undefined;
-    allThreadsStopped: boolean | undefined;
-    stoppedThreadIds = new Set<number>();
-    capabilities: DebugProtocol.Capabilities = {};
-    sources = new Map<string, DebugProtocol.Source>();
-
-    constructor(eventEmitter: NodeJS.EventEmitter, currentState?: DebugSessionState) {
-        if (currentState) {
-            this.stoppedThreadIds = new Set(currentState.stoppedThreadIds);
-            this.sources = new Map(currentState.sources);
-            this.isConnected = currentState.isConnected;
-            this.allThreadsContinued = currentState.allThreadsContinued;
-            this.allThreadsStopped = currentState.allThreadsStopped;
-        }
-
-        eventEmitter.on('connected', event => this.onConnected(event));
-        eventEmitter.on('terminated', event => this.onTerminated(event));
-        eventEmitter.on('stopped', event => this.onStopped(event));
-        eventEmitter.on('continued', event => this.onContinued(event));
-        eventEmitter.on('thread', event => this.onThread(event));
-        eventEmitter.on('capabilities', event => this.onCapabilitiesEvent(event));
-        eventEmitter.on('loadedSource', event => this.onLoadedSource(event));
-    }
-
-    private onConnected(event: ExtDebugProtocol.ConnectedEvent): void {
-        this.isConnected = true;
-    }
-
-    private onTerminated(event: DebugProtocol.TerminatedEvent): void {
-        this.isConnected = false;
-    }
-
-    private onContinued(event: DebugProtocol.ContinuedEvent): void {
-        const body = event.body;
-
-        this.allThreadsContinued = body.allThreadsContinued;
-        if (this.allThreadsContinued) {
-            this.stoppedThreadIds.clear();
-        } else {
-            this.stoppedThreadIds.delete(body.threadId);
-        }
-    }
-
-    private onStopped(event: DebugProtocol.StoppedEvent): void {
-        const body = event.body;
-
-        this.allThreadsStopped = body.allThreadsStopped;
-        if (body.threadId) {
-            this.stoppedThreadIds.add(body.threadId);
-        }
-    }
-
-    private onThread(event: DebugProtocol.ThreadEvent): void {
-        switch (event.body.reason) {
-            case 'exited': {
-                this.stoppedThreadIds.delete(event.body.threadId);
-                break;
-            }
-        }
-    }
-
-    private onLoadedSource(event: DebugProtocol.LoadedSourceEvent): void {
-        const source = event.body.source;
-        switch (event.body.reason) {
-            case 'new':
-            case 'changed': {
-                if (source.path) {
-                    this.sources.set(source.path, source);
-                } if (source.sourceReference) {
-                    this.sources.set(source.sourceReference.toString(), source);
-                }
-
-                break;
-            }
-        }
-    }
-
-    private onCapabilitiesEvent(event: DebugProtocol.CapabilitiesEvent): void {
-        Object.assign(this.capabilities, event.body.capabilities);
     }
 }

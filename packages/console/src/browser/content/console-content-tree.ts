@@ -36,7 +36,7 @@ export class ConsoleContentTree extends TreeImpl {
         if (ConsoleSessionNode.is(parent)) {
             return parent.session.items;
         }
-        return await parent.item.resolve();
+        return parent.item.resolve();
     }
 
     protected toNode(item: ConsoleItem, index: number, parent: ConsoleItemNodeParent): ConsoleItemNode {

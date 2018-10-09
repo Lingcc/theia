@@ -15,24 +15,27 @@
  ********************************************************************************/
 
 import {
-    Widget,
-    Message,
     ApplicationShell,
     WidgetManager,
     FrontendApplicationContribution,
-    BaseWidget
+    BaseWidget,
+    PanelLayout,
+    Message
 } from '@theia/core/lib/browser';
-import { DebugSessionManager } from '../debug-session';
-import { DebugSession } from '../debug-model';
+import { DebugSessionManager } from '../debug-session-manager';
+import { DebugSession } from '../debug-session';
 import { inject, injectable, postConstruct } from 'inversify';
 import { DebugThreadsWidget } from './debug-threads-widget';
 import { DebugStackFramesWidget } from './debug-stack-frames-widget';
 import { DebugBreakpointsWidget } from './debug-breakpoints-widget';
-import { DebugVariablesWidget } from './debug-variables-widget';
-import { ExtDebugProtocol } from '../../common/debug-common';
-import { Disposable } from '@theia/core';
 import { DebugStyles } from './base/debug-styles';
 import { DebugToolBar } from './debug-toolbar-widget';
+import { ViewContainer } from '@theia/core/lib/browser/view-container';
+
+// FIXME
+import { ConsoleContentWidget } from '@theia/console/lib/browser/content/console-content-widget';
+import { DebugVariablesSource } from '../view/debug-variables-source';
+import { ConsoleSessionNode } from '@theia/console/lib/browser/content/console-content-tree';
 
 export const DEBUG_FACTORY_ID = 'debug';
 
@@ -42,71 +45,49 @@ export const DEBUG_FACTORY_ID = 'debug';
  */
 @injectable()
 export class DebugWidget extends BaseWidget {
-    private readonly HORIZONTALS_IDS = ['theia-bottom-content-panel', 'theia-main-content-panel'];
-    private readonly widgets: Widget[];
+    // private readonly HORIZONTALS_IDS = ['theia-bottom-content-panel', 'theia-main-content-panel'];
 
-    constructor(
-        @inject(DebugSessionManager) protected readonly debugSessionManager: DebugSessionManager,
-        @inject(DebugSession) protected readonly debugSession: DebugSession,
-        @inject(DebugThreadsWidget) protected readonly threads: DebugThreadsWidget,
-        @inject(DebugStackFramesWidget) protected readonly frames: DebugStackFramesWidget,
-        @inject(DebugBreakpointsWidget) protected readonly breakpoints: DebugBreakpointsWidget,
-        @inject(DebugVariablesWidget) protected readonly variables: DebugVariablesWidget,
-        @inject(DebugToolBar) protected readonly toolbar: DebugToolBar
-    ) {
-        super();
+    @inject(DebugSessionManager) protected readonly debugSessionManager: DebugSessionManager;
+    @inject(DebugSession) protected readonly session: DebugSession;
+    @inject(DebugThreadsWidget) protected readonly threads: DebugThreadsWidget;
+    @inject(DebugStackFramesWidget) protected readonly frames: DebugStackFramesWidget;
+    @inject(DebugBreakpointsWidget) protected readonly breakpoints: DebugBreakpointsWidget;
+    @inject(DebugToolBar) protected readonly toolbar: DebugToolBar;
 
-        this.id = `debug-panel-${debugSession.sessionId}`;
-        this.title.label = debugSession.configuration.name;
-        this.title.caption = debugSession.configuration.name;
+    @inject(ConsoleContentWidget)
+    protected readonly variables: ConsoleContentWidget; // FIXME extract reusable tree data source
+    @inject(DebugVariablesSource)
+    protected readonly variablesSource: DebugVariablesSource;
+
+    @postConstruct()
+    protected init(): void {
+        this.id = `debug-panel-${this.session.sessionId}`;
+        this.title.label = this.session.configuration.name;
+        this.title.caption = this.session.configuration.name;
         this.title.closable = true;
         this.title.iconClass = 'fa debug-tab-icon';
         this.addClass(DebugStyles.DEBUG_CONTAINER);
-        this.widgets = [this.toolbar, this.variables, this.threads, this.frames, this.breakpoints];
-    }
 
-    @postConstruct()
-    protected init() {
-        const connectedEventListener = (event: ExtDebugProtocol.ConnectedEvent) => this.onConnectedEvent(event);
+        const layout = this.layout = new PanelLayout();
+        layout.addWidget(this.toolbar);
 
-        this.debugSession.on('connected', connectedEventListener);
-        this.toDisposeOnDetach.push(Disposable.create(() => this.debugSession.removeListener('connected', connectedEventListener)));
+        this.variables.id = 'debug:variables:' + this.session.sessionId;
+        this.variables.title.label = 'Variables';
+        this.variables.model.root = ConsoleSessionNode.to(this.variablesSource);
 
-        this.widgets.forEach(w => w.node.onfocus = () => {
-            this.debugSessionManager.setActiveDebugSession(this.debugSession.sessionId);
-        });
-
-        this.update();
-    }
-
-    private onConnectedEvent(event: ExtDebugProtocol.ConnectedEvent): void {
-        this.update();
-    }
-
-    protected onUpdateRequest(msg: Message): void {
-        super.onUpdateRequest(msg);
-        this.widgets.forEach(w => w.update());
-    }
-
-    protected onAfterAttach(msg: Message): void {
-        this.node.setAttribute('orientation',
-            (this.HORIZONTALS_IDS.some((value, index, array) => !!this.parent && value === this.parent.node.id))
-                ? 'horizontal'
-                : 'vertical');
-
-        this.widgets.forEach(w => Widget.attach(w, this.node));
-        super.onAfterAttach(msg);
-    }
-
-    protected onBeforeDetach(msg: Message): void {
-        super.onBeforeDetach(msg);
-        this.widgets.forEach(w => Widget.detach(w));
+        const debugContainer = new ViewContainer();
+        debugContainer.addWidget(this.variables);
+        debugContainer.addWidget(this.threads);
+        debugContainer.addWidget(this.frames);
+        debugContainer.addWidget(this.breakpoints);
+        layout.addWidget(debugContainer);
     }
 
     protected onActivateRequest(msg: Message): void {
         super.onActivateRequest(msg);
-        this.widgets.forEach(w => w.activate());
+        this.toolbar.focus();
     }
+
 }
 
 @injectable()

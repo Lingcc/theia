@@ -24,9 +24,10 @@ import {
     EditorManager
 } from '@theia/editor/lib/browser';
 import { DebugProtocol } from 'vscode-debugprotocol';
-import { DebugSessionManager } from '../debug-session';
+import { DebugSessionManager } from '../debug-session-manager';
 import { DebugUtils } from '../debug-utils';
 import { BreakpointStorage } from './breakpoint-marker';
+import { DebugState } from '../model/debug-thread';
 
 const ActiveLineDecoration = <EditorDecorationOptions>{
     isWholeLine: true,
@@ -46,27 +47,23 @@ export class ActiveLineDecorator extends EditorDecorator {
 
     applyDecorations(): void {
         this.editorManager.all.map(widget => this.setDecorations(widget.editor, []));
-
-        const session = this.debugSessionManager.getActiveDebugSession();
+        const session = this.debugSessionManager.currentSession;
         if (!session) {
             return;
         }
 
-        for (const threadId of session.state.stoppedThreadIds) {
-            session.stacks({ threadId, levels: 1 }).then(response => {
-                const frame = response.body.stackFrames[0];
-                if (!frame || !frame.source) {
-                    return;
-                }
-
-                const uri = DebugUtils.toUri(frame.source);
-                this.editorManager.getByUri(uri).then(widget => {
-                    if (widget) {
-                        this.doShow(widget.editor, frame);
-                    }
-                });
-            });
+        const thread = session.getThreadsForState(DebugState.Stopped).next().value;
+        const frame = thread && thread.frames.next().value;
+        if (!frame || !frame.raw.source) {
+            return;
         }
+
+        const uri = DebugUtils.toUri(frame.raw.source);
+        this.editorManager.getByUri(uri).then(widget => {
+            if (widget) {
+                this.doShow(widget.editor, frame.raw);
+            }
+        });
     }
 
     private doShow(editor: TextEditor, frame: DebugProtocol.StackFrame): void {

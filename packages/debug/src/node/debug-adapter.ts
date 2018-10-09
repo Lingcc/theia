@@ -24,11 +24,8 @@
 import * as net from 'net';
 import { injectable, inject, named } from 'inversify';
 import { ILogger, DisposableCollection, Disposable } from '@theia/core';
-import {
-    DebugSessionState,
-    DebugSessionStateAccumulator,
-    ExtDebugProtocol
-} from '../common/debug-common';
+// FIXME get rid of ExtDebugProtocol
+import { ExtDebugProtocol } from '../common/debug-common';
 import {
     RawProcessFactory,
     ProcessManager,
@@ -92,7 +89,6 @@ export class LaunchBasedDebugAdapterFactory implements DebugAdapterFactory {
  * [DebugAdapterSession](#DebugAdapterSession) implementation.
  */
 export class DebugAdapterSessionImpl extends EventEmitter implements DebugAdapterSession {
-    readonly state: DebugSessionState;
 
     private static TWO_CRLF = '\r\n\r\n';
 
@@ -111,7 +107,6 @@ export class DebugAdapterSessionImpl extends EventEmitter implements DebugAdapte
 
         this.contentLength = -1;
         this.buffer = new Buffer(0);
-        this.state = new DebugSessionStateAccumulator(this);
         this.toDispose.push(this.communicationProvider);
         this.toDispose.push(Disposable.create(() => this.pendingRequests.clear()));
         // Node.js process crashes if there is no listeners for error event
@@ -126,18 +121,21 @@ export class DebugAdapterSessionImpl extends EventEmitter implements DebugAdapte
         this.channel.onClose(() => this.channel = undefined);
 
         this.communicationProvider.output.on('data', (data: Buffer) => this.handleData(data));
-        this.communicationProvider.output.on('close', () => this.onDebugAdapterClosed());
+        this.communicationProvider.output.on('close', () => this.fireExited());
         this.communicationProvider.output.on('error', (error: Error) => this.onDebugAdapterError(error));
         this.communicationProvider.input.on('error', (error: Error) => this.onDebugAdapterError(error));
 
         this.channel.onMessage((data: string) => this.proceedRequest(data));
     }
 
-    protected onDebugAdapterClosed(): void {
-        const event: DebugProtocol.Event = {
+    protected fireExited(): void {
+        const event: DebugProtocol.ExitedEvent = {
             type: 'event',
-            event: 'terminated',
-            seq: -1
+            event: 'exited',
+            seq: -1,
+            body: {
+                exitCode: 1 // FIXME pass a proper exit code
+            }
         };
         this.proceedEvent(JSON.stringify(event), event);
     }
@@ -225,16 +223,6 @@ export class DebugAdapterSessionImpl extends EventEmitter implements DebugAdapte
                     break;
                 }
 
-                case 'configurationDone': {
-                    const event: ExtDebugProtocol.ConfigurationDoneEvent = {
-                        type: 'event',
-                        seq: -1,
-                        event: 'configurationDone'
-                    };
-                    this.proceedEvent(JSON.stringify(event), event);
-                    break;
-                }
-
                 case 'setVariable': {
                     const setVariableRequest = request as DebugProtocol.SetVariableRequest;
                     const event: ExtDebugProtocol.VariableUpdatedEvent = {
@@ -284,20 +272,6 @@ export class DebugAdapterSessionImpl extends EventEmitter implements DebugAdapte
                     }
                     break;
                 }
-
-                case 'initialized': {
-                    const initializeResponse = response as DebugProtocol.InitializeResponse;
-                    const event: DebugProtocol.CapabilitiesEvent = {
-                        type: 'event',
-                        seq: -1,
-                        event: 'capabilities',
-                        body: {
-                            capabilities: initializeResponse.body || {}
-                        }
-                    };
-                    this.proceedEvent(JSON.stringify(event), event);
-                    break;
-                }
             }
         }
     }
@@ -311,7 +285,7 @@ export class DebugAdapterSessionImpl extends EventEmitter implements DebugAdapte
     }
 
     async stop(): Promise<void> {
-        await this.toDispose.dispose();
+        this.toDispose.dispose();
     }
 }
 

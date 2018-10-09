@@ -20,7 +20,7 @@ import { Disposable, MenuPath } from '../../common';
 import { Key, KeyCode, KeyModifier } from '../keys';
 import { ContextMenuRenderer } from '../context-menu-renderer';
 import { StatefulWidget } from '../shell';
-import { SELECTED_CLASS, COLLAPSED_CLASS, FOCUS_CLASS, Widget } from '../widgets';
+import { EXPANSION_TOGGLE_CLASS, SELECTED_CLASS, COLLAPSED_CLASS, FOCUS_CLASS, Widget } from '../widgets';
 import { TreeNode, CompositeTreeNode } from './tree';
 import { TreeModel } from './tree-model';
 import { ExpandableTreeNode } from './tree-expansion';
@@ -48,7 +48,6 @@ export const TREE_NODE_SEGMENT_GROW_CLASS = 'theia-TreeNodeSegmentGrow';
 export const EXPANDABLE_TREE_NODE_CLASS = 'theia-ExpandableTreeNode';
 export const COMPOSITE_TREE_NODE_CLASS = 'theia-CompositeTreeNode';
 export const TREE_NODE_CAPTION_CLASS = 'theia-TreeNodeCaption';
-export const EXPANSION_TOGGLE_CLASS = 'theia-ExpansionToggle';
 
 export const TreeProps = Symbol('TreeProps');
 export interface TreeProps {
@@ -327,13 +326,7 @@ export class TreeWidget extends ReactWidget implements StatefulWidget {
         return <div
             data-node-id={node.id}
             className={className}
-            style={
-                {
-                    paddingLeft: '4px',
-                    paddingRight: '6px',
-                    minWidth: '8px'
-                }
-            }
+            style={{ paddingLeft: '4px' }}
             onClick={this.toggle}>
         </div>;
     }

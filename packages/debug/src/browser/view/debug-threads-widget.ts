@@ -15,145 +15,53 @@
  ********************************************************************************/
 
 import { VirtualWidget, SELECTED_CLASS, ContextMenuRenderer } from '@theia/core/lib/browser';
-import { DebugSession } from '../debug-model';
 import { h } from '@phosphor/virtualdom';
-import { DebugProtocol } from 'vscode-debugprotocol';
 import { injectable, inject, postConstruct } from 'inversify';
 import { DEBUG_SESSION_THREAD_CONTEXT_MENU } from '../debug-command';
-import { DebugSelection } from './debug-selection-service';
-import { DebugUtils } from '../debug-utils';
-import { Disposable } from '@theia/core';
-import { DebugStyles } from './base/debug-styles';
+import { DebugSession } from '../debug-session';
 
-/**
- * Is it used to display list of threads.
- */
 @injectable()
 export class DebugThreadsWidget extends VirtualWidget {
-    private _threads: DebugProtocol.Thread[] = [];
 
-    constructor(
-        @inject(DebugSession) protected readonly debugSession: DebugSession,
-        @inject(DebugSelection) protected readonly debugSelection: DebugSelection,
-        @inject(ContextMenuRenderer) protected readonly contextMenuRenderer: ContextMenuRenderer) {
-        super();
+    @inject(DebugSession)
+    protected readonly session: DebugSession;
 
-        this.id = this.createId();
-        this.addClass('theia-debug-entry');
-        this.node.setAttribute('tabIndex', '0');
-    }
+    @inject(ContextMenuRenderer)
+    protected readonly contextMenuRenderer: ContextMenuRenderer;
 
     @postConstruct()
-    protected init() {
-        const threadEventListener = (event: DebugProtocol.ThreadEvent) => this.onThreadEvent(event);
-        const connectedEventListener = () => this.updateThreads();
-        const terminatedEventListener = (event: DebugProtocol.TerminatedEvent) => this.onTerminatedEvent(event);
-        const stoppedEventListener = (event: DebugProtocol.StoppedEvent) => this.onStoppedEvent(event);
-
-        this.debugSession.on('thread', threadEventListener);
-        this.debugSession.on('configurationDone', connectedEventListener);
-        this.debugSession.on('terminated', terminatedEventListener);
-        this.debugSession.on('stopped', stoppedEventListener);
-
-        this.toDispose.push(Disposable.create(() => this.debugSession.removeListener('thread', threadEventListener)));
-        this.toDispose.push(Disposable.create(() => this.debugSession.removeListener('configurationDone', connectedEventListener)));
-        this.toDispose.push(Disposable.create(() => this.debugSession.removeListener('terminated', terminatedEventListener)));
-        this.toDispose.push(Disposable.create(() => this.debugSession.removeListener('stopped', stoppedEventListener)));
-
-        if (this.debugSession.state.isConnected) {
-            this.updateThreads();
-        }
-    }
-
-    get threads(): DebugProtocol.Thread[] {
-        return this._threads;
-    }
-
-    set threads(threads: DebugProtocol.Thread[]) {
-        this._threads = threads;
-        this.update();
+    protected init(): void {
+        this.id = 'debug-threads-' + this.session.sessionId;
+        this.title.label = 'Threads';
+        this.addClass('theia-debug-entry');
+        this.session.onDidChange(() => this.update());
     }
 
     protected render(): h.Child {
-        const header = h.div({ className: 'theia-debug-header' }, 'Threads');
         const items: h.Child = [];
 
-        for (const thread of this.threads) {
-            const className = DebugStyles.DEBUG_ITEM + (DebugUtils.isEqual(this.debugSelection.thread, thread) ? ` ${SELECTED_CLASS}` : '');
-            const id = this.createId(thread);
+        for (const thread of this.session.threads) {
+            const classNames = ['theia-debug-threads'];
+            if (this.session.currentThread === thread) {
+                classNames.push(SELECTED_CLASS);
+            }
+            const className = classNames.join(' ');
+            const id = String(thread.raw.id);
 
             const item =
                 h.div({
                     id, className,
-                    onclick: () => this.selectThread(thread),
+                    onclick: () => this.session.currentThread = thread,
                     oncontextmenu: event => {
                         event.preventDefault();
                         event.stopPropagation();
-                        this.selectThread(thread);
+                        this.session.currentThread = thread;
                         this.contextMenuRenderer.render(DEBUG_SESSION_THREAD_CONTEXT_MENU, event);
                     }
-                }, thread.name);
+                }, thread.raw.name);
             items.push(item);
         }
 
-        return [header, h.div({ className: Styles.THREADS }, items)];
+        return items;
     }
-
-    protected selectThread(newThread: DebugProtocol.Thread | undefined) {
-        const currentThread = this.debugSelection.thread;
-
-        if (DebugUtils.isEqual(currentThread, newThread)) {
-            return;
-        }
-
-        if (currentThread) {
-            const element = document.getElementById(this.createId(currentThread));
-            if (element) {
-                element.className = DebugStyles.DEBUG_ITEM;
-            }
-        }
-
-        if (newThread) {
-            const element = document.getElementById(this.createId(newThread));
-            if (element) {
-                element.className = `${DebugStyles.DEBUG_ITEM} ${SELECTED_CLASS}`;
-            }
-        }
-
-        this.debugSelection.thread = newThread;
-    }
-
-    private createId(thread?: DebugProtocol.Thread): string {
-        return `debug-threads-${this.debugSession.sessionId}` + (thread ? `-${thread.id}` : '');
-    }
-
-    protected onTerminatedEvent(event: DebugProtocol.TerminatedEvent): void {
-        this.threads = [];
-    }
-
-    protected onStoppedEvent(event: DebugProtocol.StoppedEvent): void {
-        this.updateThreads();
-    }
-
-    private onThreadEvent(event: DebugProtocol.ThreadEvent): void {
-        this.updateThreads();
-    }
-
-    private updateThreads(): void {
-        const currentThread = this.debugSelection.thread;
-
-        this.threads = [];
-        this.selectThread(undefined);
-
-        this.debugSession.threads().then(response => {
-            this.threads = response.body.threads;
-
-            const currentThreadExists = this.threads.some(thread => DebugUtils.isEqual(thread, currentThread));
-            this.selectThread(currentThreadExists ? currentThread : this.threads[0]);
-        });
-    }
-}
-
-namespace Styles {
-    export const THREADS = 'theia-debug-threads';
 }

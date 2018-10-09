@@ -50,6 +50,15 @@
     width: calc(100% - var(--theia-scrollbar-rail-width));
 }
 
+.theia-ExpansionToggle {
+    padding-right: var(--theia-ui-padding);
+    min-width: 8px;
+}
+
+.theia-ExpansionToggle:hover {
+    cursor: pointer;
+}
+
 .theia-ExpansionToggle.theia-mod-collapsed::before {
     font-family: FontAwesome;
     font-size: calc(var(--theia-content-font-size) * 0.8);

@@ -18,7 +18,7 @@ import { injectable, inject } from 'inversify';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import { BreakpointStorage } from './breakpoint-marker';
 import { DebugUtils } from '../debug-utils';
-import { DebugSession } from '../debug-model';
+import { DebugSession } from '../debug-session';
 
 /**
  * Applies session breakpoints.
@@ -42,7 +42,7 @@ export class BreakpointsApplier {
 
             // The array elements are in the same order as the elements
             // of the 'breakpoints' in the SetBreakpointsArguments.
-            const response = await debugSession.setBreakpoints(args);
+            const response = await debugSession.run('setBreakpoints', args);
             for (const i in breakpointsBySource) {
                 if (breakpointsBySource) {
                     if (response.body.breakpoints) {

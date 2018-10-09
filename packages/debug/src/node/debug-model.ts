@@ -19,13 +19,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+ // FXIME: break down to debug adapter and debug adapter contribution
+
 // Some entities copied and modified from https://github.com/Microsoft/vscode/blob/master/src/vs/vscode.d.ts
 // Some entities copied and modified from https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/parts/debug/common/debug.ts
 
 import { Disposable } from '@theia/core';
 import * as stream from 'stream';
 import { WebSocketChannel } from '@theia/core/lib/common/messaging/web-socket-channel';
-import { DebugConfiguration, DebugSessionState } from '../common/debug-common';
+import { DebugConfiguration } from '../common/debug-common';
 import { IJSONSchema } from '@theia/core/lib/common/json-schema';
 
 /**
@@ -38,8 +40,6 @@ export const DebugAdapterSession = Symbol('DebugAdapterSession');
  */
 export interface DebugAdapterSession {
     id: string;
-    state: DebugSessionState;
-
     start(channel: WebSocketChannel): Promise<void>
     stop(): Promise<void>
 }

@@ -15,7 +15,7 @@
  ********************************************************************************/
 
 import { ContainerModule, interfaces, Container } from 'inversify';
-import { DebugCommandHandlers, DEBUG_VARIABLE_CONTEXT_MENU } from './debug-command';
+import { DebugCommandHandlers } from './debug-command';
 import { DebugConfigurationManager } from './debug-configuration';
 import {
     DEBUG_FACTORY_ID,
@@ -26,37 +26,14 @@ import {
 import { DebugPath, DebugService } from '../common/debug-common';
 import { MenuContribution } from '@theia/core/lib/common/menu';
 import { CommandContribution } from '@theia/core/lib/common/command';
-import {
-    WidgetFactory,
-    WebSocketConnectionProvider,
-    createTreeContainer,
-    TreeImpl,
-    Tree,
-    TreeWidget,
-    TreeProps,
-    defaultTreeProps,
-    TreeModelImpl,
-    TreeModel,
-    FrontendApplicationContribution
-} from '@theia/core/lib/browser';
-import {
-    DebugSession,
-    DebugSessionContribution,
-    DebugSessionFactory
-} from './debug-model';
-import {
-    DebugSessionManager,
-    DefaultDebugSessionFactory,
-    DebugResourceResolver
-} from './debug-session';
-import {
-    DebugVariablesWidget, DebugVariableModel, DebugVariablesTree,
-} from './view/debug-variables-widget';
-import '../../src/browser/style/index.css';
+import { WidgetFactory, WebSocketConnectionProvider, FrontendApplicationContribution } from '@theia/core/lib/browser';
+import { DebugSession } from './debug-session';
+import { DebugSessionManager } from './debug-session-manager';
+import { DebugResourceResolver } from './debug-resource';
+import { DebugSessionContribution, DebugSessionFactory, DefaultDebugSessionFactory } from './debug-session-contribution';
 import { DebugThreadsWidget } from './view/debug-threads-widget';
 import { DebugStackFramesWidget } from './view/debug-stack-frames-widget';
 import { DebugBreakpointsWidget, BreakpointsDialog } from './view/debug-breakpoints-widget';
-import { DebugSelectionService, DebugSelection } from './view/debug-selection-service';
 import { bindContributionProvider, ResourceResolver } from '@theia/core';
 import { ActiveLineDecorator, BreakpointDecorator } from './breakpoint/breakpoint-decorators';
 import { BreakpointsManager } from './breakpoint/breakpoint-manager';
@@ -66,12 +43,11 @@ import { BreakpointsApplier } from './breakpoint/breakpoint-applier';
 import { DebugToolBar } from './view/debug-toolbar-widget';
 import { DebugFrontendApplicationContribution } from './debug-frontend-application-contribution';
 import { DebugConsoleContribution } from './console/debug-console-contribution';
+import { ConsoleContentWidget } from '@theia/console/lib/browser/content/console-content-widget';
+import { createDebugVariablesContainer } from './view/debug-variables-container';
+import { DebugVariablesSource } from './view/debug-variables-source';
 
-export const DEBUG_VARIABLES_PROPS = <TreeProps>{
-    ...defaultTreeProps,
-    contextMenuPath: DEBUG_VARIABLE_CONTEXT_MENU,
-    multiSelect: false
-};
+import '../../src/browser/style/index.css';
 
 export default new ContainerModule((bind: interfaces.Bind, unbind: interfaces.Unbind, isBound: interfaces.IsBound, rebind: interfaces.Rebind) => {
     bindDebugSessionManager(bind);
@@ -101,7 +77,6 @@ function bindDebugWidget(bind: interfaces.Bind): void {
 
     bind(DebugFrontendContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toDynamicValue(ctx => ctx.container.get(DebugFrontendContribution));
-    bind(DebugSelectionService).toSelf().inSingletonScope();
 }
 
 function bindBreakpointsManager(bind: interfaces.Bind): void {
@@ -126,29 +101,16 @@ function createDebugTargetContainer(context: interfaces.Context, sessionId: stri
     if (!session) {
         throw new Error(`Debug session '${sessionId}' does not exist`);
     }
-    const child = createTreeContainer(context.container);
-
-    const selection = context.container.get(DebugSelectionService).get(session.sessionId);
+    const child = new Container({ defaultScope: 'Singleton' });
+    child.parent = context.container;
 
     child.bind(DebugSession).toConstantValue(session);
-    child.bind(DebugSelection).toConstantValue(selection);
     child.bind(DebugThreadsWidget).toSelf();
     child.bind(DebugToolBar).toSelf();
     child.bind(DebugStackFramesWidget).toSelf();
     child.bind(DebugBreakpointsWidget).toSelf();
-
-    child.rebind(TreeProps).toConstantValue(DEBUG_VARIABLES_PROPS);
-
-    child.unbind(TreeModelImpl);
-    child.bind(DebugVariableModel).toSelf();
-    child.rebind(TreeModel).toDynamicValue(ctx => ctx.container.get(DebugVariableModel));
-
-    child.unbind(TreeImpl);
-    child.bind(DebugVariablesTree).toSelf();
-    child.rebind(Tree).toDynamicValue(ctx => ctx.container.get(DebugVariablesTree));
-
-    child.unbind(TreeWidget);
-    child.bind(DebugVariablesWidget).toSelf();
+    child.bind(DebugVariablesSource).toSelf();
+    child.bind(ConsoleContentWidget).toDynamicValue(({ container }) => createDebugVariablesContainer(container).get(ConsoleContentWidget));
 
     return child;
 }

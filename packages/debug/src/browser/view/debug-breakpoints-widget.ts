@@ -17,7 +17,7 @@
 import {
     VirtualWidget, SELECTED_CLASS, AbstractDialog, Widget, Message,
 } from '@theia/core/lib/browser';
-import { DebugSession } from '../debug-model';
+import { DebugSession } from '../debug-session';
 import { h } from '@phosphor/virtualdom';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import { Emitter, Event } from '@theia/core';
@@ -25,7 +25,6 @@ import { injectable, inject, postConstruct } from 'inversify';
 import { BreakpointsManager } from '../breakpoint/breakpoint-manager';
 import { ExtDebugProtocol } from '../../common/debug-common';
 import { DebugUtils } from '../debug-utils';
-import { Disposable } from '@theia/core';
 import { DebugStyles } from './base/debug-styles';
 
 /**
@@ -38,27 +37,23 @@ export class DebugBreakpointsWidget extends VirtualWidget {
     private breakpoints: ExtDebugProtocol.AggregatedBreakpoint[] = [];
 
     constructor(
-        @inject(BreakpointsManager) protected readonly breakpointManager: BreakpointsManager,
-        @inject(DebugSession) protected readonly debugSession: DebugSession | undefined) {
+        @inject(BreakpointsManager) protected readonly manager: BreakpointsManager,
+        @inject(DebugSession) protected readonly session: DebugSession | undefined
+    ) {
         super();
 
-        this.id = 'debug-breakpoints' + (debugSession ? `-${debugSession.sessionId}` : '');
+        this.id = 'debug-breakpoints' + (session ? `-${session.sessionId}` : '');
+        this.title.label = 'Breakpoints';
         this.addClass('theia-debug-entry');
         this.node.setAttribute('tabIndex', '0');
     }
 
     @postConstruct()
     protected init() {
-        this.toDispose.push(this.breakpointManager.onDidChangeBreakpoints(() => this.refreshBreakpoints()));
-        if (this.debugSession) {
-            const configurationDoneListener = () => this.refreshBreakpoints();
-            const terminatedEventListener = (event: DebugProtocol.TerminatedEvent) => this.onTerminatedEvent(event);
-
-            this.debugSession.on('configurationDone', configurationDoneListener);
-            this.debugSession.on('terminated', terminatedEventListener);
-
-            this.toDispose.push(Disposable.create(() => this.debugSession!.removeListener('configurationDone', configurationDoneListener)));
-            this.toDispose.push(Disposable.create(() => this.debugSession!.removeListener('terminated', terminatedEventListener)));
+        this.toDispose.push(this.manager.onDidChangeBreakpoints(() => this.refreshBreakpoints()));
+        if (this.session) {
+            this.toDispose.push(this.session.onConfigurationDone(() => this.refreshBreakpoints()));
+            this.toDispose.push(this.session.on('terminated', event => this.onTerminatedEvent(event)));
         }
     }
 
@@ -71,10 +66,10 @@ export class DebugBreakpointsWidget extends VirtualWidget {
     }
 
     async refreshBreakpoints(): Promise<void> {
-        if (this.debugSession) {
-            this.breakpoints = await this.breakpointManager.get(this.debugSession.sessionId);
+        if (this.session) {
+            this.breakpoints = await this.manager.get(this.session.sessionId);
         } else {
-            this.breakpoints = await this.breakpointManager.getAll();
+            this.breakpoints = await this.manager.getAll();
         }
         this.breakpoints.sort();
 
@@ -82,7 +77,6 @@ export class DebugBreakpointsWidget extends VirtualWidget {
     }
 
     protected render(): h.Child {
-        const header = h.div({ className: 'theia-debug-header' }, 'Breakpoints');
         const items: h.Child = [];
 
         for (const breakpoint of this.breakpoints) {
@@ -104,7 +98,7 @@ export class DebugBreakpointsWidget extends VirtualWidget {
             items.push(item);
         }
 
-        return [header, h.div({ className: Styles.BREAKPOINTS }, items)];
+        return h.div({ className: Styles.BREAKPOINTS }, items);
     }
 
     protected onTerminatedEvent(event: DebugProtocol.TerminatedEvent): void { }

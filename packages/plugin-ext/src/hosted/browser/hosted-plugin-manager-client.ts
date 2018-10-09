@@ -25,7 +25,7 @@ import { OpenFileDialogFactory, DirNode } from '@theia/filesystem/lib/browser';
 import { HostedPluginServer } from '../../common/plugin-protocol';
 import { DebugService, DebugConfiguration } from '@theia/debug/lib/common/debug-common';
 import { DebugConfiguration as HostedDebugConfig } from '../../common';
-import { DebugSessionManager } from '@theia/debug/lib/browser/debug-session';
+import { DebugSessionManager } from '@theia/debug/lib/browser/debug-session-manager';
 import { HostedPluginPreferences } from './hosted-plugin-preferences';
 
 /**

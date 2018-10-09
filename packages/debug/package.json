@@ -14,8 +14,10 @@
     "@theia/terminal": "^0.3.15",
     "@theia/variable-resolver": "^0.3.15",
     "@theia/workspace": "^0.3.15",
+    "@types/p-debounce": "^1.0.0",
     "jsonc-parser": "^2.0.2",
-    "vscode-debugprotocol": "^1.26.0"
+    "p-debounce": "^1.0.0",
+    "vscode-debugprotocol": "^1.32.0"
   },
   "publishConfig": {
     "access": "public"

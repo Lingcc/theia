@@ -15,10 +15,12 @@
  ********************************************************************************/
 
 .theia-debug-container {
-    display: inline-table;
+    display: flex;
+    flex-direction: column;
     color: var(--theia-ui-font-color1);
     background: var(--theia-layout-color0);
     font-size: var(--theia-ui-font-size1);
+    padding: var(--theia-ui-padding);
 }
 
 /* Common layout styles */
@@ -172,34 +174,30 @@ div[orientation='vertical'] > .theia-debug-entry > .theia-TreeContainer > div > 
 
 /** Miscellaneous */
 
-.debug-toolbar .button-container .btn {
-    width: 24px;
-    height: 24px;
-    display: inline-block;
-    align-items: center;
-    user-select: none;
-    border: var(--theia-border-width) solid transparent;
-    opacity: 0.25;
-    pointer-events: none;
+.debug-toolbar {
+    padding-bottom: calc(var(--theia-ui-padding)/2);
+    border-bottom: 1px solid var(--theia-layout-color4);
 }
 
-.debug-toolbar .button-container .btn.enabled {
+.debug-toolbar .debug-action {
+    padding: calc(var(--theia-ui-padding)/2);
     opacity: 0.7;
     cursor: pointer;
     pointer-events: all;
 }
 
-.debug-toolbar .button-container .btn.enabled:hover {
-    opacity: 1;
+.debug-toolbar .debug-action:not(:focus) {
+    border: 1px solid transparent;
 }
 
-.theia-debug-header {
-    background: var(--theia-layout-color3);
-    text-transform: uppercase;
-    font-size: var(--theia-ui-font-size0);
-    font-weight: 800;
-    border: 4px solid;
-    border-color: var(--theia-layout-color3);
+.debug-toolbar .debug-action.theia-mod-disabled {
+    opacity: 0.25;
+    user-select: none;
+    pointer-events: none;
+}
+
+.debug-toolbar .debug-action.theia-mod-disabled:hover {
+    opacity: 1;
 }
 
 .theia-debug-breakpoint-dialog .theia-debug-breakpoints {
